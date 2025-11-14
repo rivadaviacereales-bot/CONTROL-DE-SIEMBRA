@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Siembra Precisa (INTA) - 2.0</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%231f6f1f'/><text x='50' y='57' font-size='48' text-anchor='middle' fill='white'>🌱</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="container" role="application" aria-label="Siembra Precisa">
+
+  <header>
+    <div>
+      <h1>🌱 Siembra Precisa</h1>
+      <div class="meta">Herramienta basada en metodología INTA — Versión 2.0 (2-capas)</div>
+    </div>
+    <div class="top-actions">
+      <button class="btn-secondary" id="installBtn" style="display:none">Agregar a pantalla</button>
+      <button class="btn-secondary" id="openProfBtn">Modo Profesional</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- ===== COLUMNA IZQUIERDA: INPUTS (MODO CAMPO) ===== -->
+    <section>
+      <div class="card" aria-labelledby="operarioTitle">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h2 id="operarioTitle" style="margin:0">Modo Campo — Verificación Rápida</h2>
+            <div class="small muted">Diseñado para toma de decisiones en campo (≤5s)</div>
+          </div>
+        </div>
+
+        <label for="nombre">Nombre / Lote</label>
+        <input id="nombre" placeholder="Ej: Lote 1, Productor Juan">
+
+        <label for="densidadObj">Densidad objetivo (semillas/ha)</label>
+        <input id="densidadObj" type="number" min="1000" step="1" value="70000">
+
+        <label for="distSurco">Distancia entre surcos (cm)</label>
+        <input id="distSurco" type="number" min="10" max="100" step="1" value="70">
+
+        <label for="tramo">Tramo medido (metros)</label>
+        <input id="tramo" type="number" min="1" max="50" step="0.1" value="14.3">
+
+        <label for="distancias">Distancias entre semillas (cm) — separá por coma, espacio o enter</label>
+        <textarea id="distancias" placeholder="22, 20, 18, ..."></textarea>
+
+        <div class="controls">
+          <button class="btn-primary" onclick="calcular()" title="Ejecutar cálculo INTA">CALCULAR</button>
+          <button class="btn-secondary" onclick="nuevaMedicionOperario()">NUEVA</button>
+          <button class="btn-action" onclick="guardarMedicion()">GUARDAR</button>
+        </div>
+
+        <div class="hint">Tip: Medí 10-20 distancias si podés; con 5 también funciona pero es menos estable.</div>
+      </div>
+
+      <!-- Resultados (pantalla 3 usada por calcular) -->
+      <div id="pantalla3" style="margin-top:12px; display:none;">
+        <div id="semaforoDiv" class="semaforo-large" style="background:#ddd;color:#222"><span id="semaforoTextMain">Esperando medición...</span></div>
+        <div id="salida" class="result" aria-live="polite"></div>
+        <canvas id="grafico"></canvas>
+
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="exportarPDF()">Exportar PDF</button>
+          <button class="btn-secondary" onclick="exportarCSV()">Exportar CSV</button>
+          <button class="btn-secondary" onclick="mostrarDetallesProfesional()">Ver detalles técnicos</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== COLUMNA DERECHA: RESUMEN RÁPIDO Y HISTÓRICO ===== -->
+    <aside>
+      <div class="card">
+        <h3 style="margin:0">Resumen rápido</h3>
+        <div class="muted" style="margin-top:6px">Información clara para operarios</div>
+
+        <div style="margin-top:10px">
+          <div id="densidadCorregidaOperario" style="font-weight:800;font-size:1.05rem;color:var(--accent)">Densidad corregida: —</div>
+          <div id="recomendacionPrincipal" style="margin-top:8px;font-weight:700">Recomendación: —</div>
+          <div id="impactoEconomico" class="small muted" style="margin-top:8px">Impacto estimado: —</div>
+        </div>
+
+        <div class="notice" style="margin-top:12px">
+          <div style="font-weight:700">Guía rápida</div>
+          <div class="small" style="margin-top:4px">1) Medí distancias → 2) Tocá CALCULAR → 3) Si está rojo, corregí y repetí</div>
+        </div>
+
+        <div style="margin-top:12px">
+          <h4 style="margin:4px 0">Últimas mediciones</h4>
+          <div id="historicoOperario" class="history"></div>
+        </div>
+      </div>
+
+      <div id="profToggleCard" class="card" style="margin-top:12px">
+        <div style="display:flex;align-items:center;gap:8px;justify-content:space-between">
+          <div>
+            <strong>Modo Profesional</strong>
+            <div class="small muted">Acceso técnico y reportes (PIN requerido)</div>
+          </div>
+          <div><button class="btn-secondary" onclick="openProfPIN()">Abrir</button></div>
+        </div>
+      </div>
+
+      <div id="graficoSnapshotContainer" class="card" style="margin-top:12px">
+        <div style="font-weight:700">Histograma</div>
+        <div id="graficoProfesionalPlaceholder" class="small muted" style="margin-top:8px">(Ejecutá CALCULAR para generar histograma)</div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===== PANEL PROFESIONAL (oculto por defecto) ===== -->
+  <section id="panelProfesional" class="panel-profesional card" aria-hidden="true">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <h3 style="margin:0;color:#1f6f1f">🔎 Análisis Completo (Profesional)</h3>
+        <div id="metaLote" class="small muted">Lote: —</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-secondary" onclick="cerrarPanelProfesional()">Cerrar</button>
+        <button class="btn-primary" onclick="generarPDFProfesional()">Descargar PDF profesional</button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div><button class="btn-secondary" onclick="mostrarPanelHistorico()">Histórico</button></div>
+        <div><button class="btn-secondary" id="toggleISOBtn" onclick="toggleISO()">Mostrar ISO (avanzado)</button></div>
+        <div><button class="btn-secondary" onclick="compararUltimas()">Comparar últimas</button></div>
+        <button class="btn-secondary" onclick="copiarResultado()">Copiar resultado</button>
+      </div>
+
+      <div id="detalleTecnicoHTML" style="margin-top:12px"></div>
+
+      <div id="isoResults" style="margin-top:12px;display:none" class="result">
+        <strong>Resultados ISO (comparativo)</strong>
+        <div id="isoHTML" style="margin-top:8px"></div>
+      </div>
+
+      <div style="margin-top:12px">
+        <h4 style="margin:0 0 6px 0">Histórico de mediciones (máx. 5)</h4>
+        <div id="tablaHistoricoProfesional" style="max-height:220px;overflow:auto"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="small muted">Nota: Método INTA preservado como fuente primaria. ISO disponible sólo como cálculo comparativo.</div>
+  </footer>
+</div>
+<!-- Librería Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
