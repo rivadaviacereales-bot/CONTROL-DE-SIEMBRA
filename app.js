@@ -590,3 +590,143 @@ function copiarResultado() {
 
 
 /* ======================== SPRINT 0: BACKUP ANTES DE INDEXEDDB ======================== */
+
+
+//* ============================= INDEXEDDB INITIALIZATION ============================= */
+let idbDB;
+
+async function initIndexedDB() {
+  try {
+    // Cargar idb library desde CDN
+    if(!window.idb) {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/idb@7/build/umd.js';
+      script.onload = () => { console.log('idb loaded'); };
+      document.head.appendChild(script);
+      return new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    idbDB = await window.idb.openDB('SiembraApp', 1, {
+      upgrade(db) {
+        // Store para mediciones completas
+        if(!db.objectStoreNames.contains('mediciones')) {
+          const mediStore = db.createObjectStore('mediciones', {keyPath: 'id', autoIncrement: true});
+          mediStore.createIndex('fecha', 'fecha', {unique: false});
+          mediStore.createIndex('lote', 'nombre', {unique: false});
+          mediStore.createIndex('sincronizado', 'sincronizado', {unique: false});
+        }
+        
+        // Store para datos temporales
+        if(!db.objectStoreNames.contains('temp')) {
+          db.createObjectStore('temp');
+        }
+      }
+    });
+    console.log('IndexedDB initialized successfully');
+    return true;
+  } catch(e) {
+    console.warn('IndexedDB init failed, will use localStorage fallback:', e);
+    return false;
+  }
+}
+
+// Inicializar IndexedDB al cargar
+if(document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initIndexedDB);
+} else {
+  initIndexedDB();
+}
+
+//* ===== Guardar con fallback ===== */
+async function guardarMedicionIDB(medicion) {
+  try {
+    if(!idbDB) {
+      console.log('IDB not ready, using localStorage');
+      return guardarLocalStorageLegacy(medicion);
+    }
+    const tx = idbDB.transaction('mediciones', 'readwrite');
+    await tx.store.add(medicion);
+    await tx.done;
+    console.log('Medición guardada en IndexedDB');
+    return true;
+  } catch(e) {
+    console.warn('IDB save failed, fallback to localStorage:', e);
+    return guardarLocalStorageLegacy(medicion);
+  }
+}
+
+function guardarLocalStorageLegacy(medicion) {
+  try {
+    let historicos = JSON.parse(localStorage.getItem("siembraHistorico") || "[]");
+    historicos.unshift(medicion);
+    if(historicos.length > 5) historicos = historicos.slice(0, 5);
+    localStorage.setItem("siembraHistorico", JSON.stringify(historicos));
+    console.log('Medición guardada en localStorage (fallback)');
+    return true;
+  } catch(e) {
+    console.error('Error guardando en localStorage:', e);
+    return false;
+  }
+}
+
+//* ===== Actualizar histórico desde IndexedDB ===== */
+async function actualizarHistoricoDesdeIndexedDB() {
+  try {
+    if(!idbDB) {
+      console.log('IDB not ready, reading from localStorage');
+      return JSON.parse(localStorage.getItem("siembraHistorico") || "[]");
+    }
+    const tx = idbDB.transaction('mediciones', 'readonly');
+    const allRecords = await tx.store.getAll();
+    // Ordenar por fecha descendente
+    allRecords.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    return allRecords.slice(0, 5);
+  } catch(e) {
+    console.warn('Error reading from IDB, fallback to localStorage:', e);
+    return JSON.parse(localStorage.getItem("siembraHistorico") || "[]");
+  }
+}
+
+//* ===== MODIFICAR guardarMedicion() existente para usar IDB ===== */
+// REEMPLAZAR la función guardarMedicion() anterior con esta versión mejorada
+const guardarMedicionOriginal = guardarMedicion;
+
+async function guardarMedicion() {
+  try {
+    const salidaElem = document.getElementById('salida');
+    if(!salidaElem || !salidaElem.innerHTML.trim()){
+      alert("No hay resultados para guardar. Ejecutá primero 'CALCULAR'.");
+      return;
+    }
+    
+    const html = salidaElem.innerHTML;
+    const distJSON = salidaElem.getAttribute('data-last-distancias');
+    const distancias = distJSON ? JSON.parse(distJSON) : [];
+    const densMatch = html.match(/Densidad corregida:<\/b>\s*]*(\[\d,\.]+)\s*semillas\/ha<\/span>/i);
+    const densCorregida = densMatch ? densMatch[1].replace(',','') : '';
+    const cvMatch = html.match(/Coef\. variación:\s*(\[\d,\.]+)%/i);
+    const coefVar = cvMatch ? parseFloat(cvMatch[1].replace(',','.')) : null;
+    const estadoMatch = html.match(/\n\n([^<]+)<\/div>/i);
+    const estado = estadoMatch ? estadoMatch[1] : '';
+    const nombre = (document.getElementById('nombre') && document.getElementById('nombre').value.trim()) || "anónimo";
+    
+    const nueva = {
+      fecha: new Date().toLocaleString(),
+      nombre: nombre,
+      densidadCorregida: densCorregida,
+      coefVar: coefVar,
+      estado: estado,
+      html: html,
+      distancias: distancias,
+      sincronizado: false
+    };
+    
+    await guardarMedicionIDB(nueva);
+    alert("¡Medición guardada en el dispositivo!");
+    actualizarHistorico();
+  } catch(e){
+    console.error("Error guardando medición:", e);
+    alert("Error al guardar medición. Revisa la consola.");
+  }
+}
+
