@@ -730,3 +730,174 @@ async function guardarMedicion() {
   }
 }
 
+
+
+
+
+//* ============================= WHATSAPP SHARE BUTTON ============================= */
+function compartirWhatsApp() {
+  try {
+    const salidaElem = document.getElementById('salida');
+    if(!salidaElem || !salidaElem.innerText.trim()){
+      alert('No hay resultados para compartir. Ejecutá primero CALCULAR.');
+      return;
+    }
+    
+    const texto = salidaElem.innerText;
+    // Reemplazar saltos de línea y caracteres especiales
+    const textoFormateado = encodeURIComponent(texto);
+    const url = `https://wa.me/?text=${textoFormateado}`;
+    window.open(url, '_blank');
+  } catch(e){
+    console.error('Error compartiendo por WhatsApp:', e);
+    alert('Error al compartir por WhatsApp.');
+  }
+}
+
+// Crear botón WhatsApp dinámicamente después de calcular
+(function setupWhatsAppButton() {
+  // Observar cambios en la pantalla de resultados
+  const observer = new MutationObserver(() => {
+    const salida = document.getElementById('salida');
+    const existeBtn = document.getElementById('btnWhatsApp');
+    
+    if(salida && salida.innerHTML.trim() && !existeBtn) {
+      const btn = document.createElement('button');
+      btn.id = 'btnWhatsApp';
+      btn.className = 'btn-action';
+      btn.style.cssText = 'background:#25D366; color:white; padding:8px 16px; margin-top:10px; border-radius:4px; cursor:pointer; font-weight:bold;';
+      btn.textContent = '📱 Compartir por WhatsApp';
+      btn.addEventListener('click', compartirWhatsApp);
+      salida.parentElement.insertBefore(btn, salida.nextSibling);
+    }
+  });
+  
+  observer.observe(document.getElementById('salida'), {childList: true, subtree: true});
+})();
+
+//* ============================= CV LIVE FEEDBACK BAR ============================= */
+function showCVBar(coefVar) {
+  try {
+    let container = document.getElementById('cvLiveBar');
+    if(!container) {
+      container = document.createElement('div');
+      container.id = 'cvLiveBar';
+      container.style.cssText = 'margin:10px 0; padding:10px; border-radius:4px; background:#f5f5f5;';
+      document.getElementById('salida').parentElement.insertBefore(container, document.getElementById('salida'));
+    }
+    
+    // Determinación de color INTA
+    let color, estado, ancho;
+    if(coefVar <= 25) {
+      color = '#009E60'; // Verde - Aceptable
+      estado = '✔️ Aceptable';
+      ancho = Math.min((coefVar / 25) * 100, 100);
+    } else if(coefVar <= 50) {
+      color = '#F7C948'; // Amarillo - Revisar
+      estado = '⚠️ Revisar';
+      ancho = Math.min(100 + ((coefVar - 25) / 25) * 0, 100);
+    } else {
+      color = '#D64550'; // Rojo - Muy alta
+      estado = '❌ Muy alta';
+      ancho = 100;
+    }
+    
+    container.innerHTML = `
+      <div style="font-weight: bold; margin-bottom: 5px;">Coef. de Variación: ${coefVar.toFixed(2)}% ${estado}</div>
+      <div style="width:100%; height:24px; background:#ddd; border-radius:4px; overflow:hidden;">
+        <div style="width:${ancho}%; height:100%; background:${color}; transition:width 0.3s ease; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold;">
+          ${Math.round(ancho)}%
+        </div>
+      </div>
+    `;
+  } catch(e){
+    console.warn('Error mostrando CV bar:', e);
+  }
+}
+
+//* ============================= INYECTAR ESTILOS CSS PARA NOTIFICACIONES ============================= */
+(function injectToastStyles() {
+  const styleSheet = document.createElement('style');
+  styleSheet.textContent = `
+    /* Toast Notifications */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #333;
+      color: white;
+      padding: 16px 24px;
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 9999;
+      animation: slideIn 0.3s ease;
+      max-width: 300px;
+    }
+    
+    .toast.success {
+      background: #009E60;
+    }
+    
+    .toast.warning {
+      background: #F7C948;
+      color: #333;
+    }
+    
+    .toast.error {
+      background: #D64550;
+    }
+    
+    .toast.info {
+      background: #2196F3;
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    @keyframes slideOut {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+    }
+    
+    .toast.hide {
+      animation: slideOut 0.3s ease forwards;
+    }
+    
+    /* CV Bar - Estilos adicionales */
+    #cvLiveBar {
+      border-left: 4px solid #38761d;
+    }
+  `;
+  document.head.appendChild(styleSheet);
+})();
+
+//* ===== Función auxiliar para mostrar notificaciones ===== */
+function showToast(message, type = 'info', duration = 3000) {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.classList.add('hide');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+//* ===== INTEGRACIÓN CON calcular() - Mostrar CV Bar ===== */
+// Se agrega llamada a showCVBar() dentro de calcular() después de calcular coefVar
+// La modificación se hace inyectando en el final de la función calcular()
