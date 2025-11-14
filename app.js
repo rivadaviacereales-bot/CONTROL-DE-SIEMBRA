@@ -901,3 +901,50 @@ function showToast(message, type = 'info', duration = 3000) {
 //* ===== INTEGRACIÓN CON calcular() - Mostrar CV Bar ===== */
 // Se agrega llamada a showCVBar() dentro de calcular() después de calcular coefVar
 // La modificación se hace inyectando en el final de la función calcular()
+
+
+// ==================== SPRINT 1: GEOLOCALIZACIÓN ====================
+function obtenerUbicacionParaMedicion() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          lat: pos.coords.latitude.toFixed(6),
+          lng: pos.coords.longitude.toFixed(6),
+          precision: pos.coords.accuracy.toFixed(0)
+        });
+      },
+      (error) => {
+        console.warn('Geolocalización denegada:', error.message);
+        resolve(null);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
+    );
+  });
+}
+
+// Integración con calcular() - Obtener ubicación antes de guardar
+const calcularOriginal = window.calcular;
+window.calcular = async function() {
+  // Llamar a la función original
+  const resultado = calcularOriginal.apply(this, arguments);
+  
+  // Después de calcular, obtener ubicación para la próxima medición
+  const ubicacion = await obtenerUbicacionParaMedicion();
+  if (ubicacion) {
+    // Guardar ubicación en data-* attribute para usarla en guardarMedicion
+    document.getElementById('salida')?.setAttribute('data-ubicacion', JSON.stringify(ubicacion));
+  }
+  
+  return resultado;
+};
+
+// ==================== FIN SPRINT 1 ====================
