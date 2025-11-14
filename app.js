@@ -586,3 +586,7 @@ function copiarResultado() {
         alert("No se pudo copiar el resultado.");
     });
 }
+
+
+
+/* ======================== SPRINT 0: BACKUP ANTES DE INDEXEDDB ======================== */
